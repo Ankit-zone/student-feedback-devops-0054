@@ -16,40 +16,99 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
+
+  # =========================
+  # 1. BUILD
+  # =========================
+  build:
+    name: Build Application
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
+      - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Validate project files
-        run: |
-          test -f index.html
-          test -f style.css
-          test -f script.js
-          echo "All application files are present."
-          grep -q "<!DOCTYPE html>" index.html
-          echo "Basic HTML validation passed."
+      - name: Create build directory
+        run: mkdir -p dist
 
+      - name: Build website
+        run: |
+          cp index.html dist/
+          cp style.css dist/
+          cp script.js dist/
+          echo "Website build completed successfully."
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: student-feedback-build
+          path: dist/
+
+
+  # =========================
+  # 2. TEST
+  # =========================
+  test:
+    name: Test Application
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: student-feedback-build
+          path: dist/
+
+      - name: Test required files
+        run: |
+          test -f dist/index.html
+          test -f dist/style.css
+          test -f dist/script.js
+          echo "All required files are present."
+
+      - name: Test HTML
+        run: |
+          grep -q "<!DOCTYPE html>" dist/index.html
+          echo "HTML test passed."
+
+      - name: Test JavaScript and CSS references
+        run: |
+          grep -q "style.css" dist/index.html
+          grep -q "script.js" dist/index.html
+          echo "CSS and JavaScript references passed."
+
+      - name: Tests completed
+        run: echo "All tests passed successfully."
+
+
+  # =========================
+  # 3. DEPLOY
+  # =========================
   deploy:
-    needs: validate
+    name: Deploy Application
+    needs: test
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: student-feedback-build
+          path: dist/
 
-      - name: Setup Pages
+      - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload website artifact
+      - name: Upload website to Pages
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "."
+          path: dist/
 
       - name: Deploy to GitHub Pages
         id: deployment
